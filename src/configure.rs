@@ -26,7 +26,6 @@ use crate::config::Config;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::imap::Imap;
-use crate::job;
 use crate::log::LogExt;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{Message, Viewtype};
@@ -464,7 +463,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     if ctx.get_config(Config::ConfiguredAddr).await?.as_deref() != Some(&param.addr) {
         // Switched account, all server UIDs we know are invalid
-        job::schedule_resync(ctx).await?;
+        ctx.schedule_resync().await?;
     }
 
     // the trailing underscore is correct

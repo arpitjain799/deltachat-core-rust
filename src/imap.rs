@@ -26,7 +26,6 @@ use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifie
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::job;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
@@ -615,7 +614,7 @@ impl Imap {
                         folder, old_uid_next, uid_next, new_uid_validity,
                     );
                     set_uid_next(context, folder, uid_next).await?;
-                    job::schedule_resync(context).await?;
+                    context.schedule_resync().await?;
                 }
                 uid_next != old_uid_next // If uid_next changed, there are new emails
             } else {
@@ -681,7 +680,7 @@ impl Imap {
             .await?;
 
         if old_uid_validity != 0 || old_uid_next != 0 {
-            job::schedule_resync(context).await?;
+            context.schedule_resync().await?;
         }
         info!(
             context,
