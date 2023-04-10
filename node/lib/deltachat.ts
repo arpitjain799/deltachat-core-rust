@@ -21,12 +21,16 @@ export class AccountManager extends EventEmitter {
   accountDir: string
   jsonRpcStarted = false
 
-  constructor(cwd: string, os = 'deltachat-node') {
+  constructor(cwd: string, writable = false, os = 'deltachat-node') {
     super()
     debug('DeltaChat constructor')
 
     this.accountDir = cwd
-    this.dcn_accounts = binding.dcn_accounts_new(os, this.accountDir)
+    this.dcn_accounts = binding.dcn_accounts_new(
+      os,
+      this.accountDir,
+      writable ? 1 : 0
+    )
   }
 
   getAllAccountIds() {
@@ -179,7 +183,8 @@ export class AccountManager extends EventEmitter {
       directory = join(tmpdir(), 'deltachat-' + randomString)
       if (!existsSync(directory)) break
     }
-    const dc = new AccountManager(directory)
+    const writable = true
+    const dc = new AccountManager(directory, writable)
     const accountId = dc.addAccount()
     const context = dc.accountContext(accountId)
     return { dc, context, accountId, directory }

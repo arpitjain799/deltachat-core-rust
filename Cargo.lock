@@ -1163,6 +1163,7 @@ dependencies = [
  "encoded-words",
  "escaper",
  "fast-socks5",
+ "fd-lock",
  "format-flowed",
  "futures",
  "futures-lite",

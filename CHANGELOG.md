@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Add lockfile to account manager
+
 ### Changes
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
