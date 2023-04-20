@@ -76,6 +76,9 @@ pub struct MimeFactory<'a> {
 
     /// True if the avatar should be attached.
     attach_selfavatar: bool,
+
+    /// True iff the message is only signed.
+    sign_only: bool,
 }
 
 /// Result of rendering a message, ready to be submitted to a send job.
@@ -226,6 +229,7 @@ impl<'a> MimeFactory<'a> {
             last_added_location_id: 0,
             sync_ids_to_delete: None,
             attach_selfavatar,
+            sign_only: false,
         };
         Ok(factory)
     }
@@ -267,6 +271,7 @@ impl<'a> MimeFactory<'a> {
             last_added_location_id: 0,
             sync_ids_to_delete: None,
             attach_selfavatar: false,
+            sign_only: false,
         };
 
         Ok(res)
@@ -275,7 +280,7 @@ impl<'a> MimeFactory<'a> {
     async fn peerstates_for_recipients(
         &self,
         context: &Context,
-    ) -> Result<Vec<(Option<Peerstate>, &str)>> {
+    ) -> Result<Vec<(Option<Peerstate>, String)>> {
         let self_addr = context.get_primary_self_addr().await?;
 
         let mut res = Vec::new();
@@ -284,7 +289,7 @@ impl<'a> MimeFactory<'a> {
             .iter()
             .filter(|(_, addr)| addr != &self_addr)
         {
-            res.push((Peerstate::from_addr(context, addr).await?, addr.as_str()));
+            res.push((Peerstate::from_addr(context, addr).await?, addr.clone()));
         }
 
         Ok(res)
@@ -639,6 +644,14 @@ impl<'a> MimeFactory<'a> {
 
         let mut is_gossiped = false;
 
+        let peerstates = self.peerstates_for_recipients(context).await?;
+        let should_encrypt =
+            encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
+        let is_encrypted = should_encrypt && !force_plaintext;
+        self.sign_only = !is_encrypted
+            && !skip_autocrypt
+            && context.get_config_bool(Config::SignUnencrypted).await?;
+
         let (main_part, parts) = match self.loaded {
             Loaded::Message { .. } => {
                 self.render_message(context, &mut headers, &grpimage)
@@ -646,11 +659,6 @@ impl<'a> MimeFactory<'a> {
             }
             Loaded::Mdn { .. } => (self.render_mdn(context).await?, Vec::new()),
         };
-
-        let peerstates = self.peerstates_for_recipients(context).await?;
-        let should_encrypt =
-            encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
-        let is_encrypted = should_encrypt && !force_plaintext;
 
         let message = if parts.is_empty() {
             // Single part, render as regular message.
@@ -781,16 +789,14 @@ impl<'a> MimeFactory<'a> {
                 .into_iter()
                 .fold(message, |message, header| message.header(header));
 
-            if self.should_skip_autocrypt()
-                || !context.get_config_bool(Config::SignUnencrypted).await?
-            {
+            if !self.sign_only {
                 message
             } else {
                 let (payload, signature) = encrypt_helper.sign(context, message).await?;
                 PartBuilder::new()
                     .header((
-                        "Content-Type".to_string(),
-                        "multipart/signed; protocol=\"application/pgp-signature\"".to_string(),
+                        "Content-Type",
+                        "multipart/signed; protocol=\"application/pgp-signature\"",
                     ))
                     .child(payload)
                     .child(
@@ -879,6 +885,19 @@ impl<'a> MimeFactory<'a> {
             self.last_added_location_id = last_added_location_id;
         }
         Ok(part)
+    }
+
+    fn add_message_text(&self, mut part: PartBuilder, mut text: String) -> PartBuilder {
+        if self.sign_only {
+            // RFC 2646 "4.6" also recommends Quoted-Printable for encrypted messages, but it worked
+            // well for a long time w/o Quoted-Printable, so don't complicate things and inflate
+            // messages in size. As for unencrypted ones, it's needed to protect from ESPs (such as
+            // gmx.at) doing their own Quoted-Printable encoding and thus breaking messages and
+            // signatures.
+            part = part.header(("Content-Transfer-Encoding", "quoted-printable"));
+            text = quoted_printable::encode_to_str(text);
+        }
+        part.body(text)
     }
 
     #[allow(clippy::cognitive_complexity)]
@@ -1174,13 +1193,11 @@ impl<'a> MimeFactory<'a> {
             footer
         );
 
-        // Message is sent as text/plain, with charset = utf-8
-        let mut main_part = PartBuilder::new()
-            .header((
-                "Content-Type".to_string(),
-                "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
-            ))
-            .body(message_text);
+        let mut main_part = PartBuilder::new().header((
+            "Content-Type",
+            "text/plain; charset=utf-8; format=flowed; delsp=no",
+        ));
+        main_part = self.add_message_text(main_part, message_text);
 
         if self.msg.param.get_int(Param::Reaction).unwrap_or_default() != 0 {
             main_part = main_part.header(("Content-Disposition", "reaction"));
@@ -1310,15 +1327,12 @@ impl<'a> MimeFactory<'a> {
         };
         let p2 = stock_str::read_rcpt_mail_body(context, &p1).await;
         let message_text = format!("{}\r\n", format_flowed(&p2));
-        message = message.child(
-            PartBuilder::new()
-                .header((
-                    "Content-Type".to_string(),
-                    "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
-                ))
-                .body(message_text)
-                .build(),
-        );
+        let text_part = PartBuilder::new().header((
+            "Content-Type".to_string(),
+            "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
+        ));
+        let text_part = self.add_message_text(text_part, message_text);
+        message = message.child(text_part.build());
 
         // second body part: machine-readable, always REQUIRED by RFC 6522
         let version = get_version_str();
@@ -2186,6 +2200,7 @@ mod tests {
         assert_eq!(part.match_indices("text/plain").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 0);
+        assert_eq!(part.match_indices("quoted-printable").count(), 1);
 
         let body = payload.next().unwrap();
         assert_eq!(body.match_indices("this is the text!").count(), 1);
@@ -2220,6 +2235,7 @@ mod tests {
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
         assert_eq!(part.match_indices("multipart/mixed").count(), 0);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
+        assert_eq!(part.match_indices("quoted-printable").count(), 1);
 
         let body = payload.next().unwrap();
         assert_eq!(body.match_indices("this is the text!").count(), 1);

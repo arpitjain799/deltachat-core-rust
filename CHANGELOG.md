@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changes
+- Use Quoted-Printable for the text part of signed-only messages
+
 ### Fixes
 - JSON-RPC: do not print to stdout on failure to find an account.
 

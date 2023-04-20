@@ -53,7 +53,7 @@ impl EncryptHelper {
         &self,
         context: &Context,
         e2ee_guaranteed: bool,
-        peerstates: &[(Option<Peerstate>, &str)],
+        peerstates: &[(Option<Peerstate>, String)],
     ) -> Result<bool> {
         let mut prefer_encrypt_count = if self.prefer_encrypt == EncryptPreference::Mutual {
             1
@@ -102,7 +102,7 @@ impl EncryptHelper {
         context: &Context,
         min_verified: PeerstateVerifiedStatus,
         mail_to_encrypt: lettre_email::PartBuilder,
-        peerstates: Vec<(Option<Peerstate>, &str)>,
+        peerstates: Vec<(Option<Peerstate>, String)>,
     ) -> Result<String> {
         let mut keyring: Keyring<SignedPublicKey> = Keyring::new();
 
@@ -293,7 +293,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         Ok(())
     }
 
-    fn new_peerstates(prefer_encrypt: EncryptPreference) -> Vec<(Option<Peerstate>, &'static str)> {
+    fn new_peerstates(prefer_encrypt: EncryptPreference) -> Vec<(Option<Peerstate>, String)> {
         let addr = "bob@foo.bar";
         let pub_key = bob_keypair().public;
         let peerstate = Peerstate {
@@ -311,7 +311,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
             fingerprint_changed: false,
             verifier: None,
         };
-        vec![(Some(peerstate), addr)]
+        vec![(Some(peerstate), addr.to_string())]
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -336,7 +336,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert!(encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
 
         // test with missing peerstate
-        let ps = vec![(None, "bob@foo.bar")];
+        let ps = vec![(None, "bob@foo.bar".to_string())];
         assert!(encrypt_helper.should_encrypt(&t, true, &ps).is_err());
         assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
     }

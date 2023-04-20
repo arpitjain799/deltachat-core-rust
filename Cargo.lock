@@ -1187,6 +1187,7 @@ dependencies = [
  "proptest",
  "qrcodegen",
  "quick-xml",
+ "quoted_printable",
  "rand 0.8.5",
  "ratelimit",
  "regex",
