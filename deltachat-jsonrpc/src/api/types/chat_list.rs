@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use deltachat::chat::{Chat, ChatId};
-use deltachat::chatlist::get_last_message_for_chat;
+use deltachat::chatlist::Chatlist;
 use deltachat::constants::*;
 use deltachat::contact::{Contact, ContactId};
 use deltachat::{
     chat::{get_chat_contacts, ChatVisibility},
-    chatlist::Chatlist,
+    message::MessageState,
 };
 use num_traits::cast::ToPrimitive;
 use serde::Serialize;
@@ -62,10 +62,8 @@ pub(crate) async fn get_chat_list_item_by_id(
         });
     }
 
-    let last_msgid = get_last_message_for_chat(ctx, chat_id).await?;
-
     let chat = Chat::load_from_db(ctx, chat_id).await.context("chat")?;
-    let summary = Chatlist::get_summary2(ctx, chat_id, last_msgid, Some(&chat))
+    let summary = Chatlist::get_summary2(ctx, chat_id, Some(&chat))
         .await
         .context("summary")?;
 
@@ -79,12 +77,9 @@ pub(crate) async fn get_chat_list_item_by_id(
         .await?
         .map(|path| path.to_str().unwrap_or("invalid/path").to_owned());
 
-    let last_updated = match last_msgid {
-        Some(id) => {
-            let last_message = deltachat::message::Message::load_from_db(ctx, id).await?;
-            Some(last_message.get_timestamp() * 1000)
-        }
-        None => None,
+    let last_updated = match summary.state {
+        MessageState::Undefined => None,
+        _ => Some(summary.timestamp * 1000),
     };
 
     let chat_contacts = get_chat_contacts(ctx, chat_id).await?;

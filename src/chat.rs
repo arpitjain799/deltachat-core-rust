@@ -34,6 +34,7 @@ use crate::receive_imf::ReceivedMsg;
 use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
+use crate::summary::Summary;
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
@@ -1075,6 +1076,52 @@ impl ChatId {
             .await?;
 
         Ok(())
+    }
+
+    /// Returns a summary for a given chat.
+    pub async fn get_summary(
+        self,
+        context: &Context,
+        chat: Option<&Chat>,
+        msg: Option<&Message>,
+    ) -> Result<Summary> {
+        let chat_loaded: Chat;
+        let chat = if let Some(chat) = chat {
+            chat
+        } else {
+            let chat = Chat::load_from_db(context, self).await?;
+            chat_loaded = chat;
+            &chat_loaded
+        };
+
+        let lastcontact = if let Some(msg) = msg.as_ref() {
+            if msg.from_id == ContactId::SELF {
+                None
+            } else {
+                match chat.typ {
+                    Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
+                        let lastcontact = Contact::load_from_db(context, msg.from_id)
+                            .await
+                            .context("loading contact failed")?;
+                        Some(lastcontact)
+                    }
+                    Chattype::Single | Chattype::Undefined => None,
+                }
+            }
+        } else {
+            None
+        };
+
+        if chat.id.is_archived_link() {
+            Ok(Default::default())
+        } else if let Some(msg) = msg.filter(|msg| msg.from_id != ContactId::UNDEFINED) {
+            Ok(Summary::new(context, msg, chat, lastcontact.as_ref()).await)
+        } else {
+            Ok(Summary {
+                text: stock_str::no_messages(context).await,
+                ..Default::default()
+            })
+        }
     }
 }
 

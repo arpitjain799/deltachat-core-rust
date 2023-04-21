@@ -345,11 +345,9 @@ export class Context extends EventEmitter {
     return binding.dcn_get_mime_headers(this.dcn_context, Number(messageId))
   }
 
-  getChatlistItemSummary(chatId: number, messageId: number) {
-    debug(`getChatlistItemSummary ${chatId} ${messageId}`)
-    return new Lot(
-      binding.dcn_chatlist_get_summary2(this.dcn_context, chatId, messageId)
-    )
+  getChatlistItemSummary(chatId: number) {
+    debug(`getChatlistItemSummary ${chatId}`)
+    return new Lot(binding.dcn_chat_get_summary(this.dcn_context, chatId))
   }
 
   getChatMessages(chatId: number, flags: number, marker1before: number) {

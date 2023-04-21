@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- BREAKING: Remove msg_id (last message ID) from `dc_chatlist_get_summary2()`
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
   - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
