@@ -21,7 +21,6 @@ use rusqlite::Transaction;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use super::Sql;
-use crate::chat::ChatId;
 use crate::contact::{self, ContactId};
 
 struct Encoder<'a, W: AsyncWrite + Unpin> {
