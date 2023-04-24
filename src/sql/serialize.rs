@@ -21,7 +21,7 @@ use rusqlite::Transaction;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use super::Sql;
-use crate::contact::{self, ContactId};
+use crate::contact;
 
 struct Encoder<'a, W: AsyncWrite + Unpin> {
     tx: Transaction<'a>,
@@ -305,12 +305,11 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
         let mut rows = stmt.query(())?;
         self.w.write_all(b"l").await?;
         while let Some(row) = rows.next()? {
-            let id: ContactId = row.get("id")?;
+            let id: u32 = row.get("id")?;
             let name: String = row.get("name")?;
             let authname: String = row.get("authname")?;
             let addr: String = row.get("addr")?;
-            let origin: contact::Origin = row.get("origin")?;
-            let origin = origin.to_u32();
+            let origin: u32 = row.get("origin")?;
             let blocked: Option<bool> = row.get("blocked")?;
             let blocked = blocked.unwrap_or_default();
             let last_seen: i64 = row.get("last_seen")?;
@@ -330,7 +329,7 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
             write_bool(&mut self.w, blocked).await?;
 
             write_str(&mut self.w, "id").await?;
-            write_u32(&mut self.w, id.to_u32()).await?;
+            write_u32(&mut self.w, id).await?;
 
             write_str(&mut self.w, "last_seen").await?;
             write_i64(&mut self.w, last_seen).await?;
@@ -338,10 +337,8 @@ impl<'a, W: AsyncWrite + Unpin> Encoder<'a, W> {
             write_str(&mut self.w, "name").await?;
             write_str(&mut self.w, &name).await?;
 
-            if let Some(origin) = origin {
-                write_str(&mut self.w, "origin").await?;
-                write_u32(&mut self.w, origin).await?;
-            }
+            write_str(&mut self.w, "origin").await?;
+            write_u32(&mut self.w, origin).await?;
 
             // TODO: parse param instead of serializeing as is
             write_str(&mut self.w, "param").await?;

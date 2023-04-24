@@ -519,7 +519,7 @@ VALUES (:chat_id, :contact_id)",
     }
 
     async fn deserialize_contacts(&mut self, tx: &mut Transaction<'_>) -> Result<()> {
-        let mut stmt = self.tx.prepare(
+        let mut stmt = tx.prepare(
             "
 INSERT INTO
 contacts (id,
@@ -541,7 +541,8 @@ VALUES (:id,
         :param,
         :authname,
         :selfavatar_sent,
-        :status)")?;
+        :status)",
+        )?;
 
         self.expect_list().await?;
 
@@ -550,24 +551,48 @@ VALUES (:id,
             let addr = self.expect_string().await?;
 
             self.expect_key("authname").await?;
-            let authname = self.expect_:q
+            let authname = self.expect_string().await?;
+
+            self.expect_key("blocked").await?;
+            let blocked = self.expect_bool().await?;
 
             self.expect_key("id").await?;
-            let addr = self.expect_string().await?;
+            let id = self.expect_u32().await?;
+
+            self.expect_key("last_seen").await?;
+            let last_seen = self.expect_i64().await?;
 
             self.expect_key("name").await?;
-            let name = self.expect_u32().await?;
+            let name = self.expect_string().await?;
 
             self.expect_key("origin").await?;
-            let origin = self.expect_string().await?;
+            let origin = self.expect_u32().await?;
 
+            self.expect_key("param").await?;
+            let param = self.expect_string().await?;
 
+            self.expect_key("selfavatar_sent").await?;
+            let selfavatar_sent = self.expect_i64().await?;
+
+            let status = if self.expect_key_opt("status").await? {
+                self.expect_string().await?
+            } else {
+                "".to_string()
+            };
 
             self.expect_end().await?;
 
             stmt.execute(named_params! {
-                ":chat_id": chat_id,
-                ":contact_id": contact_id
+                ":id": id,
+                ":name": name,
+                ":addr": addr,
+                ":origin": origin,
+                ":blocked": blocked,
+                ":last_seen": last_seen,
+                ":param": param,
+                ":authname": authname,
+                ":selfavatar_sent": selfavatar_sent,
+                ":status": status
             })?;
         }
         Ok(())
