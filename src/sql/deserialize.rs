@@ -515,13 +515,61 @@ VALUES (:chat_id, :contact_id)",
                 ":contact_id": contact_id
             })?;
         }
-        self.skip_until_end().await?;
         Ok(())
     }
 
     async fn deserialize_contacts(&mut self, tx: &mut Transaction<'_>) -> Result<()> {
+        let mut stmt = self.tx.prepare(
+            "
+INSERT INTO
+contacts (id,
+          name,
+          addr,
+          origin,
+          blocked,
+          last_seen,
+          param,
+          authname,
+          selfavatar_sent,
+          status)
+VALUES (:id,
+        :name,
+        :addr,
+        :origin,
+        :blocked,
+        :last_seen,
+        :param,
+        :authname,
+        :selfavatar_sent,
+        :status)")?;
+
         self.expect_list().await?;
-        self.skip_until_end().await?;
+
+        while self.expect_dictionary_opt().await? {
+            self.expect_key("addr").await?;
+            let addr = self.expect_string().await?;
+
+            self.expect_key("authname").await?;
+            let authname = self.expect_:q
+
+            self.expect_key("id").await?;
+            let addr = self.expect_string().await?;
+
+            self.expect_key("name").await?;
+            let name = self.expect_u32().await?;
+
+            self.expect_key("origin").await?;
+            let origin = self.expect_string().await?;
+
+
+
+            self.expect_end().await?;
+
+            stmt.execute(named_params! {
+                ":chat_id": chat_id,
+                ":contact_id": contact_id
+            })?;
+        }
         Ok(())
     }
 
